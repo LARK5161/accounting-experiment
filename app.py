@@ -5,7 +5,6 @@ import time
 
 # --- 1. EXPERIMENTAL INITIALIZATION ---
 if 'experiment_started' not in st.session_state:
-    # Defining the 2x2 Matrix
     pay_schemes = ["Fixed Pay ($10.00)", "Bonus Contract ($5.00 Base + Accuracy Bonus)"]
     receivers = ["Peer Associate (Junior Clerk)", "Accounting Supervisor"]
     
@@ -15,25 +14,33 @@ if 'experiment_started' not in st.session_state:
     st.session_state.start_time = None
     st.session_state.stage = "intro"
 
-# Helper for UI styling
 def draw_header():
     st.sidebar.markdown("### System Status")
     st.sidebar.info(f"**Pay Scheme:** \n{st.session_state.pay_condition}")
     st.sidebar.warning(f"**Next in Chain:** \n{st.session_state.receiver_condition}")
 
-# --- 2. STAGE: INTRODUCTION ---
+# --- 2. STAGE: INTRODUCTION (Updated with Offloading Context) ---
 if st.session_state.stage == "intro":
     st.title("Financial Journal Processing Portal")
     draw_header()
     
     st.markdown("### Participant Instructions")
-    st.write("You are acting as a Data Entry Clerk for a corporate accounting firm. Your task is to transfer transaction data from the digital logs into the system ledger.")
+    st.write("""
+    You are performing the first stage of a two-part accounting workflow. Your task is to input 
+    transaction data into the system ledger.
+    """)
     
-    st.markdown("---")
+    st.info(f"""
+    **Workflow Interdependence:**
+    The numbers you enter here will be used directly by the **{st.session_state.receiver_condition}** to create the final Departmental Financial Statement. 
+    
+    Because your entries are the 'raw data' for their report, the **{st.session_state.receiver_condition}** will be required to manually review every entry you submit. If they find mistakes or 
+    discrepancies, they will correct them before finalizing the official document.
+    """)
+    
     st.markdown(f"**Your Compensation:** You will be paid via **{st.session_state.pay_condition}**.")
-    st.markdown(f"**Workflow:** Upon submission, your work will be forwarded to the **{st.session_state.receiver_condition}**. They are responsible for reviewing your entries and correcting any errors before final filing.")
     
-    if st.button("I understand. Start Task"):
+    if st.button("I understand the workflow. Start Task"):
         st.session_state.stage = "task"
         st.session_state.start_time = time.time()
         st.rerun()
@@ -43,9 +50,8 @@ elif st.session_state.stage == "task":
     st.title("Ledger Entry Task")
     draw_header()
     
-    st.write(f"Please enter the following 10 transactions accurately. Once finished, click 'Submit to {st.session_state.receiver_condition}'.")
+    st.write(f"Please transfer the data below. Once submitted, the **{st.session_state.receiver_condition}** will begin their review and correction process.")
     
-    # Realistic Accounting Data
     master_data = [
         {"id": "TRX-882", "val": 14290.55}, {"id": "TRX-109", "val": 882.10},
         {"id": "TRX-441", "val": 5600.00}, {"id": "TRX-229", "val": 12481.93},
@@ -56,29 +62,27 @@ elif st.session_state.stage == "task":
     
     user_responses = []
     col1, col2 = st.columns(2)
-    
     with col1:
         st.markdown("**Source Log**")
         for item in master_data:
             st.code(f"ID: {item['id']} | AMT: ${item['val']}")
-
     with col2:
         st.markdown("**System Entry**")
         for i in range(len(master_data)):
             res = st.text_input(f"Enter Amt for {master_data[i]['id']}:", key=f"input_{i}")
             user_responses.append(res)
 
-    if st.button(f"Submit Final Log to {st.session_state.receiver_condition}"):
-        # Scoring Logic
+    if st.button(f"Submit to {st.session_state.receiver_condition} for Review"):
         errors = 0
         for i, item in enumerate(master_data):
             try:
-                if float(user_responses[i].replace('$', '').replace(',', '')) != item['val']:
+                # Basic cleaning of input to allow for $ or commas
+                clean_input = user_responses[i].replace('$', '').replace(',', '').strip()
+                if float(clean_input) != item['val']:
                     errors += 1
             except:
                 errors += 1
         
-        # Save results to session
         st.session_state.results = {
             "Pay_Condition": st.session_state.pay_condition,
             "Receiver_Condition": st.session_state.receiver_condition,
@@ -91,18 +95,11 @@ elif st.session_state.stage == "task":
 
 # --- 4. STAGE: COMPLETION ---
 elif st.session_state.stage == "complete":
-    st.balloons()
     st.title("Task Submitted")
-    st.success(f"Your journal entries have been forwarded to the **{st.session_state.receiver_condition}**.")
+    st.success(f"The data has been forwarded. The **{st.session_state.receiver_condition}** will now correct any errors and finalize the report.")
     
-    st.write("### Data Summary (For Researcher)")
     res_df = pd.DataFrame([st.session_state.results])
     st.table(res_df)
     
     csv = res_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        "Download Participation Data",
-        data=csv,
-        file_name="lab_results.csv",
-        mime="text/csv"
-    )
+    st.download_button("Download Participation Token", data=csv, file_name="lab_results.csv")
