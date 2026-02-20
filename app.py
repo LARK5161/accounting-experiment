@@ -4,6 +4,7 @@ import random
 import time
 
 # --- 1. INITIALIZATION ---
+# This block runs only when a new session starts
 if 'exp' not in st.session_state:
     pay_schemes = ["Fixed Pay ($10.00)", "Bonus Contract ($5.00 Base + Accuracy Bonus)"]
     receivers = ["Peer Associate (Junior Clerk)", "Accounting Supervisor"]
@@ -17,15 +18,15 @@ if 'exp' not in st.session_state:
 # --- 2. INTRO STAGE ---
 if st.session_state.exp["stage"] == "intro":
     st.title("Financial Journal Portal")
-    st.info(f"**Pay Scheme:** {st.session_state.exp['pay']} | **Recipient:** {st.session_state.exp['receiver']}")
+    st.info(f"**Current Condition:** {st.session_state.exp['pay']} | **Recipient:** {st.session_state.exp['receiver']}")
     
     st.markdown("### Instructions")
     st.write(f"""
     You are entering raw data for the **{st.session_state.exp['receiver']}**. 
-    They will use your entries to build the final report. 
+    They will use your entries to build the final departmental report. 
     
-    **Note:** The **{st.session_state.exp['receiver']}** will manually review and 
-    correct every entry you submit to ensure the final report is 100% accurate.
+    **Workflow Context:** The **{st.session_state.exp['receiver']}** will manually review and 
+    correct every entry you submit to ensure the final report is accurate.
     """)
     
     if st.button("Begin Task"):
@@ -33,10 +34,10 @@ if st.session_state.exp["stage"] == "intro":
         st.session_state.exp["start_time"] = time.time()
         st.rerun()
 
-# --- 3. TASK STAGE (Grid Layout) ---
+# --- 3. TASK STAGE ---
 elif st.session_state.exp["stage"] == "task":
     st.title("Data Entry Ledger")
-    st.caption(f"Forwarding to: {st.session_state.exp['receiver']}")
+    st.caption(f"File Recipient: {st.session_state.exp['receiver']}")
 
     master_data = [
         {"id": "TRX-882", "val": 14290.55}, {"id": "TRX-109", "val": 882.10},
@@ -46,52 +47,28 @@ elif st.session_state.exp["stage"] == "task":
         {"id": "TRX-667", "val": 7550.00}, {"id": "TRX-554", "val": 1022.88}
     ]
 
-    # Use a Form to prevent data loss and fix alignment
     with st.form("ledger_form"):
-        # Header Row
         h1, h2 = st.columns([1, 1])
         h1.write("**Source ID & Amount**")
         h2.write("**Your Entry**")
         st.divider()
 
-        # Data Rows
         for item in master_data:
             c1, c2 = st.columns([1, 1])
             c1.markdown(f"**{item['id']}**: `${item['val']}`")
-            # This key ensures the value is saved correctly
-            c2.text_input("Label", key=f"input_{item['id']}", label_visibility="collapsed")
+            st.session_state[f"input_{item['id']}"] = c2.text_input("Label", key=f"input_{item['id']}", label_visibility="collapsed")
 
-        st.markdown("---")
         submit = st.form_submit_button(f"Submit to {st.session_state.exp['receiver']}")
 
     if submit:
         errors = 0
         for item in master_data:
-            user_input = st.session_state[f"input_{item['id']}"]
+            user_input = st.session_state.get(f"input_{item['id']}", "")
             try:
-                # Clean input of commas or dollar signs
                 clean = user_input.replace('$', '').replace(',', '').strip()
                 if float(clean) != item['val']:
                     errors += 1
             except:
                 errors += 1
         
-        st.session_state.results = {
-            "Pay": st.session_state.exp["pay"],
-            "Receiver": st.session_state.exp["receiver"],
-            "Errors": errors,
-            "Seconds": round(time.time() - st.session_state.exp["start_time"], 2)
-        }
-        st.session_state.exp["stage"] = "done"
-        st.rerun()
-
-# --- 4. DONE STAGE ---
-elif st.session_state.exp["stage"] == "done":
-    st.title("Submission Successful")
-    st.success(f"Your work has been sent to the **{st.session_state.exp['receiver']}** for correction.")
-    
-    df = pd.DataFrame([st.session_state.results])
-    st.table(df)
-    
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("Download Data Token", data=csv, file_name="results.csv")
+        st.session_state.results
