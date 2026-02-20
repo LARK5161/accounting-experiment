@@ -3,90 +3,106 @@ import pandas as pd
 import random
 import time
 
-# --- EXPERIMENTAL CONFIG ---
-if 'start_time' not in st.session_state:
-    st.session_state.start_time = time.time()
-if 'condition' not in st.session_state:
-    # 2x2 Randomization
-    pay = random.choice(["Fixed ($10.00)", "Bonus (Up to $15.00)"])
-    receiver = random.choice(["Peer Associate", "Supervisor"])
-    st.session_state.condition = {"Pay": pay, "Receiver": receiver}
-
-cond = st.session_state.condition
-
-# --- UI SETUP ---
-st.set_page_config(page_title="Financial Journal Entry Task", layout="centered")
-
-# --- STAGE 1: INSTRUCTIONS ---
-if 'stage' not in st.session_state:
+# --- 1. EXPERIMENTAL INITIALIZATION ---
+if 'experiment_started' not in st.session_state:
+    # Defining the 2x2 Matrix
+    pay_schemes = ["Fixed Pay ($10.00)", "Bonus Contract ($5.00 Base + Accuracy Bonus)"]
+    receivers = ["Peer Associate (Junior Clerk)", "Accounting Supervisor"]
+    
+    st.session_state.pay_condition = random.choice(pay_schemes)
+    st.session_state.receiver_condition = random.choice(receivers)
+    st.session_state.experiment_started = True
+    st.session_state.start_time = None
     st.session_state.stage = "intro"
 
+# Helper for UI styling
+def draw_header():
+    st.sidebar.markdown("### System Status")
+    st.sidebar.info(f"**Pay Scheme:** \n{st.session_state.pay_condition}")
+    st.sidebar.warning(f"**Next in Chain:** \n{st.session_state.receiver_condition}")
+
+# --- 2. STAGE: INTRODUCTION ---
 if st.session_state.stage == "intro":
-    st.title("Accounting Journal Processing Task")
-    st.write("### Instructions")
-    st.write(f"""
-    In this simulation, you are responsible for entering journal data into the company ledger. 
+    st.title("Financial Journal Processing Portal")
+    draw_header()
     
-    **Workflow Details:**
-    * **Your Pay:** {cond['Pay']} for this session.
-    * **Submission:** Once you submit your entries, your file will be sent directly to a **{cond['Receiver']}**.
-    * **Finalization:** The **{cond['Receiver']}** is responsible for reviewing your data, correcting any errors, and submitting the final report.
-    """)
+    st.markdown("### Participant Instructions")
+    st.write("You are acting as a Data Entry Clerk for a corporate accounting firm. Your task is to transfer transaction data from the digital logs into the system ledger.")
     
-    if st.button("Start Task"):
+    st.markdown("---")
+    st.markdown(f"**Your Compensation:** You will be paid via **{st.session_state.pay_condition}**.")
+    st.markdown(f"**Workflow:** Upon submission, your work will be forwarded to the **{st.session_state.receiver_condition}**. They are responsible for reviewing your entries and correcting any errors before final filing.")
+    
+    if st.button("I understand. Start Task"):
         st.session_state.stage = "task"
+        st.session_state.start_time = time.time()
         st.rerun()
 
-# --- STAGE 2: THE TASK ---
+# --- 3. STAGE: THE TASK ---
 elif st.session_state.stage == "task":
-    st.subheader("Data Entry Portal")
-    st.info(f"Recipient of this file: {cond['Receiver']}")
+    st.title("Ledger Entry Task")
+    draw_header()
     
-    # Sample Task Data
-    tasks = [
-        {"ref": "REC-9921", "val": 10482.93},
-        {"ref": "REC-4402", "val": 128.40},
-        {"ref": "REC-1109", "val": 5590.01},
-        {"ref": "REC-8832", "val": 932.11},
-        {"ref": "REC-7761", "val": 4410.50}
+    st.write(f"Please enter the following 10 transactions accurately. Once finished, click 'Submit to {st.session_state.receiver_condition}'.")
+    
+    # Realistic Accounting Data
+    master_data = [
+        {"id": "TRX-882", "val": 14290.55}, {"id": "TRX-109", "val": 882.10},
+        {"id": "TRX-441", "val": 5600.00}, {"id": "TRX-229", "val": 12481.93},
+        {"id": "TRX-901", "val": 332.11}, {"id": "TRX-776", "val": 4410.50},
+        {"id": "TRX-332", "val": 9921.05}, {"id": "TRX-115", "val": 220.40},
+        {"id": "TRX-667", "val": 7550.00}, {"id": "TRX-554", "val": 1022.88}
     ]
     
-    responses = []
-    for i, t in enumerate(tasks):
-        val = st.text_input(f"Enter amount for Reference {t['ref']}:", key=f"input_{i}")
-        responses.append(val)
+    user_responses = []
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**Source Log**")
+        for item in master_data:
+            st.code(f"ID: {item['id']} | AMT: ${item['val']}")
 
-    if st.button("Submit to " + cond['Receiver']):
-        # Logic to calculate errors
+    with col2:
+        st.markdown("**System Entry**")
+        for i in range(len(master_data)):
+            res = st.text_input(f"Enter Amt for {master_data[i]['id']}:", key=f"input_{i}")
+            user_responses.append(res)
+
+    if st.button(f"Submit Final Log to {st.session_state.receiver_condition}"):
+        # Scoring Logic
         errors = 0
-        for i, t in enumerate(tasks):
+        for i, item in enumerate(master_data):
             try:
-                if float(responses[i]) != t['val']:
+                if float(user_responses[i].replace('$', '').replace(',', '')) != item['val']:
                     errors += 1
             except:
                 errors += 1
         
+        # Save results to session
         st.session_state.results = {
-            "Time_Taken": round(time.time() - st.session_state.start_time, 2),
+            "Pay_Condition": st.session_state.pay_condition,
+            "Receiver_Condition": st.session_state.receiver_condition,
             "Errors": errors,
-            "Condition_Pay": cond['Pay'],
-            "Condition_Receiver": cond['Receiver']
+            "Time_Seconds": round(time.time() - st.session_state.start_time, 2),
+            "Timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         }
-        st.session_state.stage = "finish"
+        st.session_state.stage = "complete"
         st.rerun()
 
-# --- STAGE 3: FINISH & DATA DOWNLOAD ---
-elif st.session_state.stage == "finish":
-    st.success("Task Complete. Your file has been sent.")
-    st.write("Please click the button below to download your participation token and data.")
+# --- 4. STAGE: COMPLETION ---
+elif st.session_state.stage == "complete":
+    st.balloons()
+    st.title("Task Submitted")
+    st.success(f"Your journal entries have been forwarded to the **{st.session_state.receiver_condition}**.")
     
-    # Create a simple CSV for the researcher
-    df = pd.DataFrame([st.session_state.results])
-    csv = df.to_csv(index=False).encode('utf-8')
+    st.write("### Data Summary (For Researcher)")
+    res_df = pd.DataFrame([st.session_state.results])
+    st.table(res_df)
     
+    csv = res_df.to_csv(index=False).encode('utf-8')
     st.download_button(
-        label="Download Research Token",
+        "Download Participation Data",
         data=csv,
-        file_name='experiment_data.csv',
-        mime='text/csv',
+        file_name="lab_results.csv",
+        mime="text/csv"
     )
