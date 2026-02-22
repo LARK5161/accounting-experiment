@@ -92,4 +92,38 @@ elif st.session_state.role == "receiver":
                 s_val = job['sender_data'].get(item['id'], "")
                 c1, c2, c3 = st.columns([1, 1, 1])
                 c1.write(f"**Master:** `${item['val']}`")
-                c2.write(f"**Sender:** `{s_val}
+                c2.write(f"**Sender:** `{s_val}`")
+                # Receiver inputs their correction here
+                c3.text_input("Fix", value=s_val, key=f"fix_{item['id']}", label_visibility="collapsed")
+            
+            if st.form_submit_button("Finalize & Submit Report"):
+                # ACTUALLY SAVE THE CORRECTIONS
+                job['corrections'] = {item['id']: st.session_state.get(f"fix_{item['id']}") for item in MASTER_DATA}
+                job['status'] = "Finalized"
+                st.session_state.role = "admin_view"
+                st.rerun()
+
+# --- 5. ADMIN VIEW ---
+elif st.session_state.role == "admin_view":
+    st.title("Final Experiment Results")
+    st.write("This is a summary of the full interaction.")
+    
+    for entry in st.session_state.lab_database:
+        with st.expander(f"Report: Sender {entry['sender_id']} → {entry['receiver_type']}"):
+            st.write(f"**Pay Scheme:** {entry['pay']}")
+            st.write(f"**Status:** {entry['status']}")
+            
+            # Show comparison
+            comp_data = []
+            for item in MASTER_DATA:
+                comp_data.append({
+                    "ID": item['id'],
+                    "Correct Value": item['val'],
+                    "Sender Input": entry['sender_data'].get(item['id']),
+                    "Receiver Fixed": entry['corrections'].get(item['id']) if entry['corrections'] else "N/A"
+                })
+            st.table(pd.DataFrame(comp_data))
+
+    if st.button("Start New Session"):
+        st.session_state.clear()
+        st.rerun()
